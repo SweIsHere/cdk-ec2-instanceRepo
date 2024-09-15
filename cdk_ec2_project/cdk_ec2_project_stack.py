@@ -22,7 +22,7 @@ class Ec2WebStack(core.Stack):
                                    description="ID de la AMI")
 
         # Crear el Security Group
-        vpc = ec2.Vpc.from_lookup(self, "VPC", is_default=True)  # Obtiene el VPC por defecto
+        vpc = ec2.Vpc.from_lookup(self, "VPC", is_default=True)
         security_group = ec2.SecurityGroup(self, "InstanceSecurityGroup",
                                            vpc=vpc,
                                            description="Permitir tráfico SSH y HTTP desde cualquier lugar")
@@ -36,13 +36,13 @@ class Ec2WebStack(core.Stack):
                                 machine_image=ec2.MachineImage.generic_linux({
                                     "us-east-1": ami_id.value_as_string
                                 }),
-                                vpc=vpc,  # Usa el VPC definido arriba
-                                key_name="vockey",  # La key_name para el acceso SSH
+                                vpc=vpc,
+                                key_name="vockey",
                                 security_group=security_group,
                                 block_devices=[
                                     ec2.BlockDevice(
                                         device_name="/dev/sda1",
-                                        volume=ec2.BlockDeviceVolume.ebs(20)  # Tamaño del volumen en GB
+                                        volume=ec2.BlockDeviceVolume.ebs(20)
                                     )
                                 ],
                                 # Aquí se usa el Instance Profile en lugar del rol directamente
@@ -54,7 +54,7 @@ class Ec2WebStack(core.Stack):
                                     git clone https://github.com/utec-cc-2024-2-test/websimple.git
                                     git clone https://github.com/utec-cc-2024-2-test/webplantilla.git
                                     ls -l
-                                ''')  # Script de User Data para clonar los repositorios
+                                ''')
                                 )
 
         # Salidas del stack
