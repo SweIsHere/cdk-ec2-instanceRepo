@@ -1,43 +1,36 @@
 from aws_cdk import (
-    core,
     aws_ec2 as ec2,
-    aws_iam as iam
+    aws_iam as iam,
+    Stack,
+    CfnOutput
 )
+from constructs import Construct
 
+class CdkEc2InstanceStack(Stack):
 
-class Ec2WebStack(core.Stack):
-
-    def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
-        # Parámetros definidos
-        instance_name = core.CfnParameter(self, "InstanceName",
-                                          type="String",
-                                          default="MV Reemplazar",
-                                          description="Nombre de la instancia a crear")
-
-        ami_id = core.CfnParameter(self, "AMI",
-                                   type="String",
-                                   default="ami-0aa28dab1f2852040",
-                                   description="ID de la AMI")
-
-        # Crear el Security Group
+        # VPC (puedes usar la default VPC)
         vpc = ec2.Vpc.from_lookup(self, "VPC", is_default=True)
+
+        # Security Group
         security_group = ec2.SecurityGroup(self, "InstanceSecurityGroup",
                                            vpc=vpc,
-                                           description="Permitir tráfico SSH y HTTP desde cualquier lugar")
-
+                                           description="Permitir trafico SSH y HTTP desde cualquier lugar",
+                                           security_group_name="my-instance-sg"
+                                           )
         security_group.add_ingress_rule(ec2.Peer.any_ipv4(), ec2.Port.tcp(22), "Permitir SSH")
         security_group.add_ingress_rule(ec2.Peer.any_ipv4(), ec2.Port.tcp(80), "Permitir HTTP")
 
-        # Asociar el Instance Profile a la instancia EC2
         instance = ec2.Instance(self, "EC2Instance",
+                                instance_name="MV Reemplazar",
                                 instance_type=ec2.InstanceType("t2.micro"),
                                 machine_image=ec2.MachineImage.generic_linux({
-                                    "us-east-1": ami_id.value_as_string
+                                    "us-east-1": "ami-0aa28dab1f2852040"  # AMI de Ubuntu
                                 }),
-                                vpc=vpc,
                                 key_name="vockey",
+                                vpc=vpc,
                                 security_group=security_group,
                                 block_devices=[
                                     ec2.BlockDevice(
@@ -45,31 +38,24 @@ class Ec2WebStack(core.Stack):
                                         volume=ec2.BlockDeviceVolume.ebs(20)
                                     )
                                 ],
-                                # Aquí se usa el Instance Profile en lugar del rol directamente
-                                role=iam.InstanceProfile.from_instance_profile_arn(self, "InstanceProfile",
-                                                                                    "arn:aws:iam::724707870327:instance-profile/LabInstanceProfile"),
+                                role=iam.Role.from_role_arn(self, "InstanceRole",
+                                                            "arn:aws:iam::724707870327:instance-profile/LabInstanceProfile"),
                                 user_data=ec2.UserData.custom('''
-                                    #!/bin/bash
-                                    cd /var/www/html/
-                                    git clone https://github.com/utec-cc-2024-2-test/websimple.git
-                                    git clone https://github.com/utec-cc-2024-2-test/webplantilla.git
-                                    ls -l
-                                ''')
+                #!/bin/bash
+                cd /var/www/html/
+                git clone https://github.com/utec-cc-2024-2-test/websimple.git
+                git clone https://github.com/utec-cc-2024-2-test/webplantilla.git
+                ls -l
+            ''')
                                 )
 
-        # Salidas del stack
-        core.CfnOutput(self, "InstanceId",
-                       description="ID de la instancia EC2",
-                       value=instance.instance_id)
+        # Outputs
+        self.output_instance_id = self.create_output("InstanceId", instance.instance_id)
+        self.output_instance_public_ip = self.create_output("InstancePublicIP", instance.instance_public_ip)
+        self.output_websimple_url = self.create_output("websimpleURL",
+                                                       f"http://{instance.instance_public_ip}/websimple")
+        self.output_webplantilla_url = self.create_output("webplantillaURL",
+                                                          f"http://{instance.instance_public_ip}/webplantilla")
 
-        core.CfnOutput(self, "InstancePublicIP",
-                       description="IP pública de la instancia",
-                       value=instance.instance_public_ip)
-
-        core.CfnOutput(self, "WebSimpleURL",
-                       description="URL de websimple",
-                       value=f"http://{instance.instance_public_ip}/websimple")
-
-        core.CfnOutput(self, "WebPlantillaURL",
-                       description="URL de webplantilla",
-                       value=f"http://{instance.instance_public_ip}/webplantilla")
+    def create_output(self, name, value):
+        return CfnOutput(self, name, value=value)
